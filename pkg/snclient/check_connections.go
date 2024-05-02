@@ -5,6 +5,7 @@ package snclient
 import (
 	"context"
 	"fmt"
+	"net"
 
 	"pkg/convert"
 )
@@ -32,6 +33,24 @@ const (
 	tcpNewSynRecv
 	tcpStateMAX // pseudo entry, keep this last in case new states would be added
 )
+
+const (
+	ipv4StrLen = 8
+	ipv6StrLen = 32
+)
+
+// SockAddr as ip:port pair
+type SockAddr struct {
+	IP   net.IP
+	Port uint16
+}
+
+// SockEntry as each line of the /proc/net/[tcp|udp]
+type SockEntry struct {
+	LocalAddr  *SockAddr
+	RemoteAddr *SockAddr
+	State      tcpStates
+}
 
 func (t *tcpStates) String() string {
 	switch *t {
@@ -97,6 +116,8 @@ func (l *CheckConnections) Build() *CheckData {
 		attributes: []CheckAttribute{
 			{name: "inet", description: "address family, can be total (sum of any), all (any+total), any (v4+v6), inet4 or inet6"},
 			{name: "prefix", description: "address family as prefix, will be empty, inet4 or inet6"},
+			{name: "lport", description: "local port"},
+			{name: "rport", description: "remote port"},
 			{name: "total", description: "total number of connections"},
 			{name: "established", description: "total number of connections of type: established"},
 			{name: "syn_sent", description: "total number of connections of type: syn_sent"},
@@ -149,8 +170,7 @@ func (l *CheckConnections) Check(ctx context.Context, snc *Agent, check *CheckDa
 	if l.addressFamily == "total" || l.addressFamily == "all" {
 		// combine all into a total
 		entry := l.defaultEntry("total")
-		for i := range check.listData {
-			row := check.listData[i]
+		for _, row := range check.listData {
 			for key := range row {
 				num1 := convert.Int64(row[key])
 				num2 := convert.Int64(entry[key])
@@ -167,8 +187,7 @@ func (l *CheckConnections) Check(ctx context.Context, snc *Agent, check *CheckDa
 	}
 
 	// create metrics
-	for i := range check.listData {
-		entry := check.listData[i]
+	for i, entry := range check.listData {
 		if entry["inet"] != "total" {
 			entry["prefix"] = entry["inet"] + " "
 		}
