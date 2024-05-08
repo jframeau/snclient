@@ -140,11 +140,11 @@ func (l *Listener) setListenTLSConfig(conf *ConfigSection) error {
 
 	// tls minimum version
 	if tlsMin, ok := conf.GetString("tls min version"); ok {
-		min, err := utils.ParseTLSMinVersion(tlsMin)
+		minV, err := utils.ParseTLSMinVersion(tlsMin)
 		if err != nil {
 			return fmt.Errorf("invalid tls min version: %s", err.Error())
 		}
-		l.tlsConfig.MinVersion = min
+		l.tlsConfig.MinVersion = minV
 	}
 
 	/* remove insecure ciphers, but only tls == 1.2
@@ -397,13 +397,16 @@ func (l *Listener) LogWrapHTTPHandler(next http.Handler, res http.ResponseWriter
 	logHTTPRequest(req)
 
 	resCapture := &ResponseWriterCapture{
-		w: res,
+		w:           res,
+		captureBody: log.IsV(LogVerbosityTrace2),
 	}
 	res = resCapture
 	next.ServeHTTP(res, req)
 
-	if capture, ok := res.(*ResponseWriterCapture); ok {
-		log.Tracef("http response:\n%s", capture.String(req, true))
+	if log.IsV(LogVerbosityTrace2) {
+		if capture, ok := res.(*ResponseWriterCapture); ok {
+			log.Tracef("http response:\n%s", capture.String(req, true))
+		}
 	}
 
 	duration := time.Since(startTime)

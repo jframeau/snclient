@@ -3,6 +3,7 @@ package snclient
 import (
 	"cmp"
 	"context"
+	_ "embed"
 	"fmt"
 	"os"
 	"regexp"
@@ -17,6 +18,9 @@ import (
 func init() {
 	AvailableChecks["check_os_updates"] = CheckEntry{"check_os_updates", NewCheckOSUpdates}
 }
+
+//go:embed embed/scripts/windows/check_os_updates.ps1
+var checkOSupdatesPS1 string
 
 var (
 	reAPTSecurity = regexp.MustCompile(`(Debian-Security:|Ubuntu:[^/]*/[^-]*-security)`)
@@ -374,27 +378,12 @@ func (l *CheckOSUpdates) addWindows(ctx context.Context, check *CheckData) (bool
 		return false, nil
 	}
 
-	online := "0"
-	if l.update {
-		online = "1"
-	}
-
 	// https://learn.microsoft.com/en-us/windows/win32/api/wuapi/nf-wuapi-iupdatesearcher-search
 	// https://learn.microsoft.com/en-us/windows/win32/api/wuapi/nn-wuapi-iupdate
-	updates := `
-		$update = new-object -com Microsoft.update.Session
-		$searcher = $update.CreateUpdateSearcher()
-		$searcher.Online = ` + online + `
-		$pending = $searcher.Search('IsInstalled=0 AND IsHidden=0')
-		foreach($entry in $pending.Updates) {
-			Write-host Title: $entry.Title
-			foreach($cat in $entry.Categories) {
-				Write-host Category: $cat.Name
-			}
-		}
-
-	`
-	cmd := powerShellCmd(ctx, updates)
+	cmd := powerShellCmd(ctx, checkOSupdatesPS1)
+	if l.update {
+		cmd.Env = append(cmd.Env, "ONLINE_SEARCH=1")
+	}
 	output, stderr, exitCode, _, err := l.snc.runExternalCommand(ctx, cmd, DefaultCmdTimeout)
 	if err != nil {
 		return true, fmt.Errorf("getting pending updates failed: %s\n%s", err.Error(), stderr)

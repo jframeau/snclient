@@ -23,6 +23,7 @@ import (
 	"syscall"
 	"time"
 
+	"pkg/counter"
 	"pkg/utils"
 	"pkg/wmi"
 
@@ -60,6 +61,9 @@ const (
 
 	// DefaultCmdTimeout sets the default timeout for running commands.
 	DefaultCmdTimeout = 30
+
+	// DefaultProfilerTimeout sets the default timeout for pprof handler.
+	DefaultProfilerTimeout = 180
 )
 
 var (
@@ -133,16 +137,17 @@ type AgentFlags struct {
 }
 
 type Agent struct {
-	config            *Config     // reference to global config object
-	Listeners         *ModuleSet  // Listeners stores if we started listeners
-	Tasks             *ModuleSet  // Tasks stores if we started task runners
-	Counter           *CounterSet // Counter stores collected counters from tasks
+	config            *Config      // reference to global config object
+	Listeners         *ModuleSet   // Listeners stores if we started listeners
+	Tasks             *ModuleSet   // Tasks stores if we started task runners
+	Counter           *counter.Set // Counter stores collected counters from tasks
 	flags             *AgentFlags
 	cpuProfileHandler *os.File
 	runSet            *AgentRunSet
 	osSignalChannel   chan os.Signal
 	running           atomic.Bool
 	Log               *factorlog.FactorLog
+	profileServer     *http.Server
 }
 
 // AgentRunSet contains the runtime dynamic references
@@ -160,7 +165,7 @@ func NewAgent(flags *AgentFlags) *Agent {
 	snc := &Agent{
 		Listeners: NewModuleSet("listener"),
 		Tasks:     NewModuleSet("task"),
-		Counter:   NewCounterSet(),
+		Counter:   counter.NewCounterSet(),
 		config:    NewConfig(true),
 		flags:     flags,
 		Log:       log,
@@ -173,6 +178,7 @@ func NewAgent(flags *AgentFlags) *Agent {
 	if initSet != nil {
 		// create logger early, so start up errors can be added to the default log as well
 		snc.createLogger(initSet.config)
+		snc.checkConfigProfiler(initSet.config)
 	}
 	if err != nil {
 		LogStderrf("ERROR: %s", err.Error())
@@ -606,28 +612,7 @@ func (snc *Agent) checkFlags() {
 			os.Exit(ExitCodeError)
 		}
 
-		runtime.SetBlockProfileRate(BlockProfileRateInterval)
-		runtime.SetMutexProfileFraction(BlockProfileRateInterval)
-
-		go func() {
-			// make sure we log panics properly
-			defer snc.logPanicExit()
-
-			server := &http.Server{
-				Addr:              snc.flags.ProfilePort,
-				ReadTimeout:       DefaultSocketTimeout * time.Second,
-				ReadHeaderTimeout: DefaultSocketTimeout * time.Second,
-				WriteTimeout:      DefaultSocketTimeout * time.Second,
-				IdleTimeout:       DefaultSocketTimeout * time.Second,
-				Handler:           http.DefaultServeMux,
-			}
-
-			log.Warnf("pprof profiler listening at http://%s/debug/pprof/ (make sure to use a binary without -trimpath, ex. from make builddebug)", snc.flags.ProfilePort)
-			err := server.ListenAndServe()
-			if err != nil {
-				log.Debugf("http.ListenAndServe finished with: %e", err)
-			}
-		}()
+		snc.startPProfiler(snc.flags.ProfilePort)
 	}
 
 	if snc.flags.ProfileCPU != "" {
@@ -718,7 +703,7 @@ func (snc *Agent) runCheck(ctx context.Context, name string, args []string) *Che
 
 	handler := check.Handler()
 	chk := handler.Build()
-	parsedArgs, warn, crit, err := chk.ParseArgs(args)
+	parsedArgs, err := chk.ParseArgs(args)
 	if err != nil {
 		return &CheckResult{
 			State:  CheckExitUnknown,
@@ -738,13 +723,6 @@ func (snc *Agent) runCheck(ctx context.Context, name string, args []string) *Che
 		defer restoreLogLevel()
 	}
 
-	// default warning/critical overridden from check arguments, ex. check_service
-	if warn != "" {
-		chk.defaultWarning = warn
-	}
-	if crit != "" {
-		chk.defaultCritical = crit
-	}
 	if chk.showHelp > 0 {
 		state := CheckExitUnknown
 		if chk.showHelp == Markdown {
@@ -1258,6 +1236,8 @@ func (snc *Agent) BuildInventory(ctx context.Context, modules []string) map[stri
 		handler := check.Handler()
 		meta := handler.Build()
 		if !meta.isImplemented(runtime.GOOS) {
+			log.Debugf("skipping inventory for unimplemented (%s) check: %s / %s", runtime.GOOS, k, check.Name)
+
 			continue
 		}
 		switch meta.hasInventory {
@@ -1269,7 +1249,7 @@ func (snc *Agent) BuildInventory(ctx context.Context, modules []string) map[stri
 				continue
 			}
 			meta.output = "inventory_json"
-			meta.filter = []*Condition{{isNone: true}}
+			meta.filter = ConditionList{{isNone: true}}
 			data, err := handler.Check(ctx, snc, meta, []Argument{})
 			if err != nil && (data == nil || data.Raw == nil) {
 				log.Tracef("inventory %s returned error: %s", check.Name, err.Error())
@@ -1348,4 +1328,70 @@ func pkgArch(arch string) string {
 	default:
 		return "unknown"
 	}
+}
+
+// check configuration if profiler needs to be stopped or started
+func (snc *Agent) checkConfigProfiler(config *Config) {
+	// do not touch profile server if started from command args
+	if snc.flags.ProfilePort != "" {
+		return
+	}
+
+	if enabled, _, _ := config.Section("/modules").GetBool("PProfiler"); !enabled {
+		snc.stopPProfiler()
+
+		return
+	}
+
+	port, _ := config.Section("/settings/PProfiler/server").GetString("port")
+	if port == "" {
+		snc.stopPProfiler()
+
+		return
+	}
+
+	snc.startPProfiler(port)
+}
+
+// start the global profiler
+func (snc *Agent) startPProfiler(port string) {
+	if snc.profileServer != nil {
+		log.Warnf("pprof profiler already listening at http://%s/debug/pprof/ (not starting again)", snc.profileServer.Addr)
+
+		return
+	}
+
+	runtime.SetBlockProfileRate(BlockProfileRateInterval)
+	runtime.SetMutexProfileFraction(BlockProfileRateInterval)
+
+	go func() {
+		// make sure we log panics properly
+		defer snc.logPanicExit()
+
+		server := &http.Server{
+			Addr:              port,
+			ReadTimeout:       DefaultSocketTimeout * time.Second,
+			ReadHeaderTimeout: DefaultSocketTimeout * time.Second,
+			WriteTimeout:      DefaultProfilerTimeout * time.Second,
+			IdleTimeout:       DefaultSocketTimeout * time.Second,
+			Handler:           http.DefaultServeMux,
+		}
+
+		log.Warnf("pprof profiler listening at http://%s/debug/pprof/ (make sure to use a binary without -trimpath, ex. from make builddebug)", port)
+		err := server.ListenAndServe()
+		snc.profileServer = server
+		if err != nil {
+			snc.profileServer = nil
+			log.Debugf("http.ListenAndServe finished with: %e", err)
+		}
+	}()
+}
+
+// stop the global profiler
+func (snc *Agent) stopPProfiler() {
+	if snc.profileServer == nil {
+		return
+	}
+	snc.profileServer.Close()
+	snc.profileServer = nil
 }
