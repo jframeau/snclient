@@ -4,23 +4,23 @@ go 1.22.0
 
 replace pkg/dump => ../../pkg/dump
 
-replace pkg/eventlog => ../../pkg/eventlog
+replace github.com/consol-monitoring/snclient/pkg/eventlog => ../../pkg/eventlog
 
-replace pkg/convert => ../../pkg/convert
+replace github.com/consol-monitoring/snclient/pkg/convert => ../../pkg/convert
 
 replace pkg/counter => ../../pkg/counter
 
-replace pkg/humanize => ../../pkg/humanize
+replace github.com/consol-monitoring/snclient/pkg/humanize => ../../pkg/humanize
 
-replace pkg/nrpe => ../../pkg/nrpe
+replace github.com/consol-monitoring/snclient/pkg/nrpe => ../../pkg/nrpe
 
 replace pkg/snclient => ../../pkg/snclient
 
 replace pkg/snclient/commands => ../../pkg/snclient/commands
 
-replace pkg/utils => ../../pkg/utils
+replace github.com/consol-monitoring/snclient/pkg/utils => ../../pkg/utils
 
-replace pkg/wmi => ../../pkg/wmi
+replace github.com/consol-monitoring/snclient/pkg/wmi => ../../pkg/wmi
 
 replace pkg/check_dns => ../../pkg/check_dns
 
@@ -32,12 +32,18 @@ require (
 	github.com/beevik/ntp v1.4.1
 	github.com/capnspacehook/taskmaster v0.0.0-20210519235353-1629df7c85e9
 	github.com/consol-monitoring/check_nsc_web/pkg/checknscweb v0.0.0-20240321161425-fd9209e96e1f
+	github.com/consol-monitoring/snclient/pkg/convert v0.0.0-20240508113110-e70bd2f478ac
+	github.com/consol-monitoring/snclient/pkg/eventlog v0.0.0-20240508113110-e70bd2f478ac
+	github.com/consol-monitoring/snclient/pkg/humanize v0.0.0-20240508113110-e70bd2f478ac
+	github.com/consol-monitoring/snclient/pkg/nrpe v0.0.0-20240508113110-e70bd2f478ac
+	github.com/consol-monitoring/snclient/pkg/utils v0.0.0-20240508113110-e70bd2f478ac
+	github.com/consol-monitoring/snclient/pkg/wmi v0.0.0-20240508113110-e70bd2f478ac
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/kdar/factorlog v0.0.0-20211012144011-6ea75a169038
 	github.com/otiai10/copy v1.14.0
 	github.com/prometheus/client_golang v1.19.0
 	github.com/sasha-s/go-deadlock v0.3.1
-	github.com/sassoftware/go-rpmutils v0.3.0
+	github.com/sassoftware/go-rpmutils v0.4.0
 	github.com/sevlyar/go-daemon v0.1.6
 	github.com/shirou/gopsutil/v3 v3.24.4
 	github.com/sni/check_http_go/pkg/checkhttp v0.0.0-20231227232912-71c069b10aae
@@ -48,20 +54,16 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	pkg/check_dns v0.0.0-00010101000000-000000000000
 	pkg/check_tcp v0.0.0-00010101000000-000000000000
-	pkg/convert v0.0.0-00010101000000-000000000000
 	pkg/counter v0.0.0-00010101000000-000000000000
 	pkg/dump v0.0.0-00010101000000-000000000000
-	pkg/eventlog v0.0.0-00010101000000-000000000000
-	pkg/humanize v0.0.0-00010101000000-000000000000
-	pkg/nrpe v0.0.0-00010101000000-000000000000
-	pkg/utils v0.0.0-00010101000000-000000000000
-	pkg/wmi v0.0.0-00010101000000-000000000000
 )
 
 require (
 	github.com/DataDog/zstd v1.5.5 // indirect
+	github.com/ProtonMail/go-crypto v1.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/cloudflare/circl v1.3.8 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect

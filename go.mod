@@ -4,23 +4,23 @@ go 1.22.0
 
 replace pkg/dump => ./pkg/dump
 
-replace pkg/eventlog => ./pkg/eventlog
+replace github.com/consol-monitoring/snclient/pkg/eventlog => ./pkg/eventlog
 
-replace pkg/convert => ./pkg/convert
+replace github.com/consol-monitoring/snclient/pkg/convert => ./pkg/convert
 
 replace pkg/counter => ./pkg/counter
 
-replace pkg/humanize => ./pkg/humanize
+replace github.com/consol-monitoring/snclient/pkg/humanize => ./pkg/humanize
 
-replace pkg/nrpe => ./pkg/nrpe
+replace github.com/consol-monitoring/snclient/pkg/nrpe => ./pkg/nrpe
 
 replace pkg/snclient => ./pkg/snclient
 
 replace pkg/snclient/commands => ./pkg/snclient/commands
 
-replace pkg/utils => ./pkg/utils
+replace github.com/consol-monitoring/snclient/pkg/utils => ./pkg/utils
 
-replace pkg/wmi => ./pkg/wmi
+replace github.com/consol-monitoring/snclient/pkg/wmi => ./pkg/wmi
 
 replace pkg/check_dns => ./pkg/check_dns
 
@@ -30,18 +30,25 @@ replace pkg/check_tcp => ./pkg/check_tcp
 replace github.com/shirou/gopsutil/v3 => github.com/sni/gopsutil/v3 v3.0.0-20240506201943-915d2ad98f31
 
 require (
+	github.com/consol-monitoring/snclient/pkg/utils v0.0.0-20240508113110-e70bd2f478ac
 	github.com/stretchr/testify v1.9.0
 	pkg/snclient/commands v0.0.0-00010101000000-000000000000
-	pkg/utils v0.0.0-00010101000000-000000000000
 )
 
 require (
 	github.com/DataDog/zstd v1.5.5 // indirect
+	github.com/ProtonMail/go-crypto v1.0.0 // indirect
 	github.com/beevik/ntp v1.4.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/capnspacehook/taskmaster v0.0.0-20210519235353-1629df7c85e9 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/cloudflare/circl v1.3.8 // indirect
 	github.com/consol-monitoring/check_nsc_web/pkg/checknscweb v0.0.0-20240321161425-fd9209e96e1f // indirect
+	github.com/consol-monitoring/snclient/pkg/convert v0.0.0-20240508113110-e70bd2f478ac // indirect
+	github.com/consol-monitoring/snclient/pkg/eventlog v0.0.0-20240508113110-e70bd2f478ac // indirect
+	github.com/consol-monitoring/snclient/pkg/humanize v0.0.0-20240508113110-e70bd2f478ac // indirect
+	github.com/consol-monitoring/snclient/pkg/nrpe v0.0.0-20240508113110-e70bd2f478ac // indirect
+	github.com/consol-monitoring/snclient/pkg/wmi v0.0.0-20240508113110-e70bd2f478ac // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-chi/chi/v5 v5.0.12 // indirect
@@ -69,7 +76,7 @@ require (
 	github.com/rickb777/plural v1.4.2 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/sasha-s/go-deadlock v0.3.1 // indirect
-	github.com/sassoftware/go-rpmutils v0.3.0 // indirect
+	github.com/sassoftware/go-rpmutils v0.4.0 // indirect
 	github.com/sevlyar/go-daemon v0.1.6 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.4 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
@@ -94,11 +101,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	pkg/check_dns v0.0.0-00010101000000-000000000000 // indirect
 	pkg/check_tcp v0.0.0-00010101000000-000000000000 // indirect
-	pkg/convert v0.0.0-00010101000000-000000000000 // indirect
 	pkg/counter v0.0.0-00010101000000-000000000000 // indirect
-	pkg/eventlog v0.0.0-00010101000000-000000000000 // indirect
-	pkg/humanize v0.0.0-00010101000000-000000000000 // indirect
-	pkg/nrpe v0.0.0-00010101000000-000000000000 // indirect
 	pkg/snclient v0.0.0-00010101000000-000000000000 // indirect
-	pkg/wmi v0.0.0-00010101000000-000000000000 // indirect
 )

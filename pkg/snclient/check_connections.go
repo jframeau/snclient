@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net"
 
-	"pkg/convert"
+	"github.com/consol-monitoring/snclient/pkg/convert"
 )
 
 func init() {
