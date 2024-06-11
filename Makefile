@@ -52,10 +52,11 @@ ifeq ($(DEB_ARCH),386)
 endif
 DEBFILE ?= snclient-$(VERSION)-$(RPM_ARCH).deb
 
-BUILD_FLAGS=-ldflags "-s -w -X pkg/snclient.Build=$(BUILD) -X pkg/snclient.Revision=$(REVISION)"
+GITBASE=github.com/consol-monitoring/snclient
+BUILD_FLAGS=-ldflags "-s -w -X $(GITBASE)/pkg/snclient.Build=$(BUILD) -X $(GITBASE)/pkg/snclient.Revision=$(REVISION)"
 TEST_FLAGS=-timeout=5m $(BUILD_FLAGS)
 
-NODE_EXPORTER_VERSION=1.8.0
+NODE_EXPORTER_VERSION=1.8.1
 NODE_EXPORTER_FILE=node_exporter-$(NODE_EXPORTER_VERSION).$(GOOS)-$(GOARCH).tar.gz
 NODE_EXPORTER_URL=https://github.com/prometheus/node_exporter/releases/download/v$(NODE_EXPORTER_VERSION)/$(NODE_EXPORTER_FILE)
 
@@ -96,7 +97,7 @@ all: build snclient.ini server.crt server.key
 CMDS = $(shell cd ./cmd && ls -1)
 
 tools: | versioncheck
-	set -e; for DEP in $(shell grep "_ " buildtools/tools.go | awk '{ print $$2 }' | grep -v pkg/dump); do \
+	set -e; for DEP in $(shell grep "_ " buildtools/tools.go | awk '{ print $$2 }'); do \
 		( cd buildtools && $(GO) install $$DEP@latest ) ; \
 	done
 	( cd buildtools && $(GO) mod tidy )
@@ -105,12 +106,7 @@ updatedeps: versioncheck
 	$(MAKE) clean
 	$(MAKE) tools
 	$(GO) mod download
-	set -e; for dir in $(shell ls -d1 pkg/*); do \
-		( cd ./$$dir && $(GO) mod download ); \
-		( cd ./$$dir && GOPROXY=direct $(GO) get -u ); \
-		( cd ./$$dir && GOPROXY=direct $(GO) get -t -u ); \
-	done
-	GOPROXY=direct $(GO) get -u ./t/
+	GOPROXY=direct $(GO) get -t -u ./pkg/* ./pkg/snclient/commands ./cmd/* ./t
 	$(GO) mod download
 	$(MAKE) cleandeps
 
@@ -128,11 +124,7 @@ go.work:
 	echo "go $(MINGOVERSIONSTR).0" > go.work
 	$(GO) work use \
 		. \
-		pkg/* \
-		pkg/snclient/commands \
-		cmd/* \
 		buildtools/. \
-		t/. \
 
 gomods:
 	find . -name go.mod -exec sed -i {} -e "s/^go .*/go $(MINGOVERSIONSTR).0/" \;
@@ -276,19 +268,19 @@ citest: tools vendor
 	#
 
 benchmark:
-	CGO_ENABLED=$(CGO_ENABLED) $(GO) test $(TEST_FLAGS) -v -bench=B\* -run=^$$ -benchmem ./pkg/* pkg/*/commands
+	CGO_ENABLED=$(CGO_ENABLED) $(GO) test $(TEST_FLAGS) -v -bench=B\* -run=^$$ -benchmem ./pkg/* ./pkg/*/commands
 
 racetest:
 	# go: -race requires cgo, so do not use the macro here
-	$(GO) test -race $(TEST_FLAGS) -coverprofile=coverage.txt -covermode=atomic ./pkg/* pkg/*/commands
+	$(GO) test -race $(TEST_FLAGS) -coverprofile=coverage.txt -covermode=atomic ./pkg/* ./pkg/*/commands
 
 covertest:
-	CGO_ENABLED=$(CGO_ENABLED) $(GO) test -v $(TEST_FLAGS) -coverprofile=cover.out ./pkg/* pkg/*/commands
+	CGO_ENABLED=$(CGO_ENABLED) $(GO) test -v $(TEST_FLAGS) -coverprofile=cover.out ./pkg/* ./pkg/*/commands
 	$(GO) tool cover -func=cover.out
 	$(GO) tool cover -html=cover.out -o coverage.html
 
 coverweb:
-	CGO_ENABLED=$(CGO_ENABLED) $(GO) test -v $(TEST_FLAGS) -coverprofile=cover.out ./pkg/* pkg/*/commands
+	CGO_ENABLED=$(CGO_ENABLED) $(GO) test -v $(TEST_FLAGS) -coverprofile=cover.out ./pkg/* ./pkg/*/commands
 	$(GO) tool cover -html=cover.out
 
 clean:
@@ -345,19 +337,14 @@ golangci: tools
 	# golangci combines a few static code analyzer
 	# See https://github.com/golangci/golangci-lint
 	#
-	@set -e; for dir in $$(ls -1d pkg/* pkg/snclient/commands cmd t); do \
-		echo $$dir; \
-		if [ $$dir != "pkg/eventlog" ]; then \
-			echo "  - GOOS=linux"; \
-			( cd $$dir && GOOS=linux CGO_ENABLED=0 golangci-lint run --timeout=5m ./... ); \
-			echo "  - GOOS=darwin"; \
-			( cd $$dir && GOOS=darwin CGO_ENABLED=$(CGO_ENABLED) golangci-lint run --timeout=5m ./... ); \
-			echo "  - GOOS=freebsd"; \
-			( cd $$dir && GOOS=freebsd CGO_ENABLED=0 golangci-lint run --timeout=5m ./... ); \
-		fi; \
-		echo "  - GOOS=windows"; \
-		( cd $$dir && GOOS=windows CGO_ENABLED=0 golangci-lint run --timeout=5m ./... ); \
-	done
+	@echo "  - GOOS=linux"; \
+	GOOS=linux CGO_ENABLED=0 golangci-lint run --timeout=5m pkg/... cmd/... t/...
+	@echo "  - GOOS=darwin"; \
+	GOOS=darwin CGO_ENABLED=$(CGO_ENABLED) golangci-lint run --timeout=5m pkg/... cmd/... t/...
+	@echo "  - GOOS=freebsd"; \
+	GOOS=freebsd CGO_ENABLED=0 golangci-lint run --timeout=5m pkg/... cmd/... t/...
+	@echo "  - GOOS=windows"; \
+	GOOS=windows CGO_ENABLED=0 golangci-lint run --timeout=5m pkg/... cmd/... t/...
 
 govulncheck: tools
 	govulncheck ./...
@@ -616,7 +603,7 @@ release_blog_text: release_notes.txt
 	@echo ''
 	@echo '### Download'
 	@echo ''
-	@echo '<https://github.com/ConSol-Monitoring/snclient/releases/tag/v$(VERSION)>'
+	@echo '<https://$(GITBASE)/releases/tag/v$(VERSION)>'
 
 
 # just skip unknown make targets

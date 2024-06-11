@@ -23,14 +23,13 @@ import (
 	"syscall"
 	"time"
 
-	"pkg/counter"
-
+	"github.com/consol-monitoring/snclient/pkg/counter"
 	"github.com/consol-monitoring/snclient/pkg/utils"
 	"github.com/consol-monitoring/snclient/pkg/wmi"
 	"github.com/kdar/factorlog"
 	deadlock "github.com/sasha-s/go-deadlock"
 	daemon "github.com/sevlyar/go-daemon"
-	"github.com/shirou/gopsutil/v3/host"
+	"github.com/shirou/gopsutil/v4/host"
 	"golang.org/x/exp/slices"
 )
 
@@ -68,11 +67,11 @@ const (
 
 var (
 	// Build contains the current git commit id
-	// compile passing -ldflags "-X pkg/snclient.Build <build sha1>" to set the id.
+	// compile passing -ldflags "-X snclient.Build <build sha1>" to set the id.
 	Build = ""
 
 	// Revision contains the minor version number (number of commits, since last tag)
-	// compile passing -ldflags "-X pkg/snclient.Revision <commits>" to set the revision number.
+	// compile passing -ldflags "-X snclient.Revision <commits>" to set the revision number.
 	Revision = ""
 )
 
@@ -1394,4 +1393,10 @@ func (snc *Agent) stopPProfiler() {
 	}
 	snc.profileServer.Close()
 	snc.profileServer = nil
+}
+
+// counterCreate creates a new counter and adds some logging
+func (snc *Agent) counterCreate(category, key string, bufferLength, interval time.Duration) {
+	log.Debugf("creating counter %s.%s (buffer: %s)", category, key, bufferLength.String())
+	snc.Counter.Create(category, key, bufferLength, interval)
 }

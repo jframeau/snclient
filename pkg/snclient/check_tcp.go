@@ -1,6 +1,6 @@
 package snclient
 
-import "pkg/check_tcp"
+import "github.com/consol-monitoring/snclient/pkg/check_tcp"
 
 func init() {
 	AvailableChecks["check_tcp"] = CheckEntry{"check_tcp", NewCheckTCP}
@@ -9,7 +9,7 @@ func init() {
 func NewCheckTCP() CheckHandler {
 	return &CheckBuiltin{
 		name:        "check_tcp",
-		description: "Runs check_tcp to perform checks on other snclient agents.",
+		description: "Runs check_tcp to perform tcp connection checks.",
 		check:       check_tcp.Check,
 	}
 }

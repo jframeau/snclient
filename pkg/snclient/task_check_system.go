@@ -4,18 +4,19 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
 
 	"github.com/consol-monitoring/snclient/pkg/convert"
-	cpuinfo "github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/net"
+	cpuinfo "github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/net"
 )
 
 const (
-	// SystemMetricsMeasureInterval sets the ticker measuring the CPU counter
-	SystemMetricsMeasureInterval = 1 * time.Second
+	// DefaultSystemMetricsMeasureInterval sets the ticker measuring the CPU counter
+	DefaultSystemMetricsMeasureInterval = 1 * time.Second
 )
 
 type CheckSystemHandler struct {
@@ -24,7 +25,9 @@ type CheckSystemHandler struct {
 	stopChannel chan bool
 	snc         *Agent
 
-	bufferLength time.Duration
+	bufferLength    time.Duration
+	metricsInterval time.Duration
+	deviceFilter    []regexp.Regexp
 }
 
 func NewCheckSystemHandler() Module {
@@ -33,7 +36,9 @@ func NewCheckSystemHandler() Module {
 
 func (c *CheckSystemHandler) Defaults(_ *AgentRunSet) ConfigData {
 	defaults := ConfigData{
-		"default buffer length": "1h",
+		"default buffer length": "15m",
+		"device filter":         "^veth",
+		"metrics interval":      "5s",
 	}
 
 	return defaults
@@ -48,6 +53,23 @@ func (c *CheckSystemHandler) Init(snc *Agent, section *ConfigSection, _ *Config,
 		return fmt.Errorf("default buffer length: %s", err.Error())
 	}
 	c.bufferLength = time.Duration(bufferLength) * time.Second
+
+	metricsInterval, _, err := section.GetDuration("metrics interval")
+	if err != nil {
+		return fmt.Errorf("metrics interval: %s", err.Error())
+	}
+	if metricsInterval <= 0 {
+		metricsInterval = DefaultSystemMetricsMeasureInterval.Seconds()
+	}
+	c.metricsInterval = time.Duration(metricsInterval) * time.Second
+
+	deviceFilter, ok, err := section.GetRegexp("device filter")
+	if err != nil {
+		return fmt.Errorf("device filter: %s", err.Error())
+	}
+	if ok && deviceFilter != nil {
+		c.deviceFilter = []regexp.Regexp{*deviceFilter}
+	}
 
 	// create counter
 	c.update(true)
@@ -66,7 +88,7 @@ func (c *CheckSystemHandler) Stop() {
 }
 
 func (c *CheckSystemHandler) mainLoop() {
-	ticker := time.NewTicker(SystemMetricsMeasureInterval)
+	ticker := time.NewTicker(c.metricsInterval)
 	defer ticker.Stop()
 
 	for {
@@ -93,9 +115,9 @@ func (c *CheckSystemHandler) update(create bool) {
 
 	if create {
 		for key := range data {
-			c.snc.Counter.Create("cpu", key, c.bufferLength, SystemMetricsMeasureInterval)
+			c.snc.counterCreate("cpu", key, c.bufferLength, c.metricsInterval)
 		}
-		c.snc.Counter.Create("cpuinfo", "info", c.bufferLength, SystemMetricsMeasureInterval)
+		c.snc.counterCreate("cpuinfo", "info", c.bufferLength, c.metricsInterval)
 	}
 
 	for key, val := range data {
@@ -105,8 +127,21 @@ func (c *CheckSystemHandler) update(create bool) {
 
 	// add interface traffic data
 	for key, val := range netdata {
+		skipped := false
+		for i := range c.deviceFilter {
+			if c.deviceFilter[i].MatchString(key) {
+				skipped = true
+
+				break
+			}
+		}
+		if skipped {
+			log.Tracef("skipped network device: %s", key)
+
+			continue
+		}
 		if c.snc.Counter.Get("net", key) == nil {
-			c.snc.Counter.Create("net", key, c.bufferLength, SystemMetricsMeasureInterval)
+			c.snc.counterCreate("net", key, c.bufferLength, c.metricsInterval)
 		}
 		c.snc.Counter.Set("net", key, val)
 	}
@@ -165,8 +200,8 @@ func (c *CheckSystemHandler) fetch() (data map[string]float64, cputimes *cpuinfo
 
 func (c *CheckSystemHandler) addLinuxKernelStats(create bool) {
 	if create {
-		c.snc.Counter.Create("kernel", "ctxt", c.bufferLength, SystemMetricsMeasureInterval)
-		c.snc.Counter.Create("kernel", "processes", c.bufferLength, SystemMetricsMeasureInterval)
+		c.snc.counterCreate("kernel", "ctxt", c.bufferLength, c.metricsInterval)
+		c.snc.counterCreate("kernel", "processes", c.bufferLength, c.metricsInterval)
 	}
 
 	statFile, err := os.Open("/proc/stat")

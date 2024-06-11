@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 	"golang.org/x/exp/slices"
 )
 
@@ -23,7 +23,7 @@ func (l *CheckProcess) fetchProcs(ctx context.Context, check *CheckData) error {
 		return fmt.Errorf("couldn't find timezone: %s", l.timeZoneStr)
 	}
 
-	userNameLookup := map[int32]string{}
+	userNameLookup := map[uint32]string{}
 
 	for _, proc := range procs {
 		cmdLine, err := proc.CmdlineWithContext(ctx)
@@ -77,20 +77,22 @@ func (l *CheckProcess) fetchProcs(ctx context.Context, check *CheckData) error {
 			continue
 		}
 
+		username := ""
+		uid := -1
 		uids, err := proc.UidsWithContext(ctx)
 		if err != nil {
 			log.Debugf("check_process: uids error: %s", err.Error())
-			uids = []int32{-1}
-		}
-
-		// cache user name lookups
-		username := userNameLookup[uids[0]]
-		if username == "" {
-			username, err = proc.UsernameWithContext(ctx)
-			if err != nil {
-				log.Debugf("check_process: Username error uid %#v: %s", uids, err.Error())
+		} else if len(uids) > 0 {
+			// cache user name lookups
+			uid = int(uids[0])
+			username = userNameLookup[uids[0]]
+			if username == "" {
+				username, err = proc.UsernameWithContext(ctx)
+				if err != nil {
+					log.Debugf("check_process: Username error uid %#v: %s", uids, err.Error())
+				}
+				userNameLookup[uids[0]] = username
 			}
-			userNameLookup[uids[0]] = username
 		}
 
 		mem, err := proc.MemoryInfoWithContext(ctx)
@@ -113,7 +115,7 @@ func (l *CheckProcess) fetchProcs(ctx context.Context, check *CheckData) error {
 			"exe":           exe,
 			"filename":      filename,
 			"pid":           fmt.Sprintf("%d", proc.Pid),
-			"uid":           fmt.Sprintf("%d", uids[0]),
+			"uid":           fmt.Sprintf("%d", uid),
 			"username":      username,
 			"virtual":       fmt.Sprintf("%d", mem.VMS),
 			"rss":           fmt.Sprintf("%d", mem.RSS),
